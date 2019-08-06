@@ -1,11 +1,19 @@
 import torch
 import torchvision
 from time import time
-from torch import nn, optim
+from torch import nn, optim, cuda
+from torch.nn import functional as F
 
 
 PATH_TO_STORE_TRAINSET = './data/train'
 PATH_TO_STORE_TESTSET = './data/test'
+
+IMG_WIDTH = IMG_HEIGHT = 28
+
+INPUT_SIZE = IMG_WIDTH * IMG_HEIGHT
+FIRST_HIDDEN_LAYER_SIZE = 128
+SECOND_HIDDEN_LAYER_SIZE = 64
+OUTPUT_SIZE = 10
 
 
 def get_data_loaders():
@@ -38,6 +46,22 @@ def get_model():
     return model
 
 
+class FeedForward(torch.nn.Module):
+
+    def __init__(self, input_size, hidden_sizes, output_size):
+        super().__init__()
+        self.linear1 = torch.nn.Linear(input_size, hidden_sizes[0])
+        self.linear2 = torch.nn.Linear(hidden_sizes[0], hidden_sizes[1])
+        self.linear3 = torch.nn.Linear(hidden_sizes[1], output_size)
+        self.softmax = torch.nn.LogSoftmax(dim=1)
+
+    def forward(self, x):
+        x1 = F.relu(self.linear1(x))  # .clamp(min=0)
+        x2 = F.relu(self.linear2(x1))  # .clamp(min=0)
+        x3 = self.linear3(x2)
+        return self.softmax(x3)
+
+
 def train_model(train_loader, model, loss_f):
     optimizer = optim.SGD(model.parameters(), lr=0.003, momentum=0.9)
     time0 = time()
@@ -47,6 +71,9 @@ def train_model(train_loader, model, loss_f):
         for images, labels in train_loader:
             # Flatten MNIST images into a 784 long vector
             images = images.view(images.shape[0], -1)
+            if cuda.is_available():
+                images = images.cuda()
+                labels = labels.cuda()
 
             # Training pass
             optimizer.zero_grad()
@@ -62,37 +89,50 @@ def train_model(train_loader, model, loss_f):
 
             running_loss += loss.item()
         else:
-            print("Epoch {} - Training loss: {:.5f}".format(e, running_loss / len(train_loader)))
-            print("Training Time {:.2f} min".format((time() - time0) / 60))
+            print(
+                "Epoch{:> 3} - Train loss: {:.5f} - Elapsed: {:.2f} min".format(
+                    e, running_loss / len(train_loader), (time() - time0) / 60
+                )
+            )
 
 
 def calculate_accuracy(val_loader, model):
     correct_count, all_count = 0, 0
     for images, labels in val_loader:
+        if cuda.is_available():
+            labels = labels.cuda()
         for i in range(len(labels)):
             img = images[i].view(1, 784)
+            if cuda.is_available():
+                img = img.cuda()
             with torch.no_grad():
                 logps = model(img)
 
             ps = torch.exp(logps)
-            probab = list(ps.numpy()[0])
+            probab = list(ps.cpu().numpy()[0])
             pred_label = probab.index(max(probab))
-            true_label = labels.numpy()[i]
+            true_label = labels.cpu().numpy()[i]
             if true_label == pred_label:
                 correct_count += 1
             all_count += 1
 
     print("Number Of Images Tested =", all_count)
-    print("Model Accuracy =", (correct_count / all_count))
+    print("Model Accuracy = {:.2f}%".format(100 * correct_count / all_count))
 
 
 if __name__ == '__main__':
 
     train_loader, val_loader = get_data_loaders()
 
-    model = get_model()
+    model = FeedForward(
+        input_size=INPUT_SIZE, hidden_sizes=[FIRST_HIDDEN_LAYER_SIZE, SECOND_HIDDEN_LAYER_SIZE], output_size=OUTPUT_SIZE
+    )
+    # model = get_model()
+    if cuda.is_available():
+        model = model.cuda()
 
     loss_f = nn.NLLLoss()
+    # loss_f = nn.CrossEntropyLoss()
 
     train_model(train_loader, model, loss_f)
     torch.save(model, './data/my_mnist_model.pt')
