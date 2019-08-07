@@ -15,7 +15,9 @@ FIRST_HIDDEN_LAYER_SIZE = 128
 SECOND_HIDDEN_LAYER_SIZE = 64
 OUTPUT_SIZE = 10
 
-DEFAULT_EPOCHS = 15
+FEED_FORWARD_EPOCHS = 15
+CNN_EPOCHS = 5
+DEFAULT_EPOCHS = 10
 
 
 def get_data_loaders():
@@ -33,28 +35,22 @@ def get_data_loaders():
 
 
 def get_model():
-    input_size = 784
-    hidden_sizes = [128, 64]
-    output_size = 10
-
-    # define model
-    model = nn.Sequential(nn.Linear(input_size, hidden_sizes[0]),
-                          nn.ReLU(),
-                          nn.Linear(hidden_sizes[0], hidden_sizes[1]),
-                          nn.ReLU(),
-                          nn.Linear(hidden_sizes[1], output_size),
-                          nn.LogSoftmax(dim=1))
-
-    return model
+    return nn.Sequential(
+        nn.Linear(INPUT_SIZE, FIRST_HIDDEN_LAYER_SIZE),
+        nn.ReLU(),
+        nn.Linear(FIRST_HIDDEN_LAYER_SIZE, SECOND_HIDDEN_LAYER_SIZE),
+        nn.ReLU(),
+        nn.Linear(SECOND_HIDDEN_LAYER_SIZE, OUTPUT_SIZE),
+        nn.LogSoftmax(dim=1)
+    )
 
 
 class FeedForward(torch.nn.Module):
-
-    def __init__(self, input_size, hidden_sizes, output_size):
+    def __init__(self):
         super().__init__()
-        self.linear1 = torch.nn.Linear(input_size, hidden_sizes[0])
-        self.linear2 = torch.nn.Linear(hidden_sizes[0], hidden_sizes[1])
-        self.linear3 = torch.nn.Linear(hidden_sizes[1], output_size)
+        self.linear1 = torch.nn.Linear(INPUT_SIZE, FIRST_HIDDEN_LAYER_SIZE)
+        self.linear2 = torch.nn.Linear(FIRST_HIDDEN_LAYER_SIZE, SECOND_HIDDEN_LAYER_SIZE)
+        self.linear3 = torch.nn.Linear(SECOND_HIDDEN_LAYER_SIZE, OUTPUT_SIZE)
         self.softmax = torch.nn.LogSoftmax(dim=1)
 
     def forward(self, x):
@@ -66,7 +62,6 @@ class FeedForward(torch.nn.Module):
 
 
 class ConvNet(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
         self.layer1 = nn.Sequential(
@@ -161,22 +156,18 @@ def calculate_accuracy(val_loader, model):
 
 if __name__ == '__main__':
 
+    model_type = 'FF'  # 'CNN' 'FF'
+
     train_loader, val_loader = get_data_loaders()
 
-    model = ConvNet()
-    # model = FeedForward(
-    #     input_size=INPUT_SIZE,
-    #     hidden_sizes=[FIRST_HIDDEN_LAYER_SIZE, SECOND_HIDDEN_LAYER_SIZE],
-    #     output_size=OUTPUT_SIZE
-    # )
-    # model = get_model()
+    model = ConvNet() if model_type == "CNN" else FeedForward()
     if cuda.is_available():
         model = model.cuda()
 
     loss_f = nn.NLLLoss()
-    # loss_f = nn.CrossEntropyLoss()
 
-    train_model(train_loader, model, loss_f, epochs=10)  # DEFAULT_EPOCHS
+    # epochs = CNN_EPOCHS if model_type == "CNN" else FEED_FORWARD_EPOCHS
+    train_model(train_loader, model, loss_f, epochs=DEFAULT_EPOCHS)
     torch.save(model, './data/my_mnist_model.pt')
 
     calculate_accuracy(val_loader, model)
