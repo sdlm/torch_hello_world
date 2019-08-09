@@ -1,8 +1,13 @@
+import argparse
+import copy
+
 import torch
 import torchvision
 from time import time
 from torch import nn, optim, cuda
 from torch.nn import functional as F
+from torch.optim import lr_scheduler
+from torchvision import datasets, models, transforms
 
 
 PATH_TO_STORE_TRAINSET = './data/train'
@@ -11,13 +16,13 @@ PATH_TO_STORE_TESTSET = './data/test'
 IMG_WIDTH = IMG_HEIGHT = 28
 
 INPUT_SIZE = IMG_WIDTH * IMG_HEIGHT
+NUM_CLASSES = 10
+
+DEFAULT_EPOCHS = 10
+
+# Feed Forward network
 FIRST_HIDDEN_LAYER_SIZE = 128
 SECOND_HIDDEN_LAYER_SIZE = 64
-OUTPUT_SIZE = 10
-
-FEED_FORWARD_EPOCHS = 15
-CNN_EPOCHS = 5
-DEFAULT_EPOCHS = 10
 
 
 def get_data_loaders():
@@ -40,8 +45,7 @@ def get_model():
         nn.ReLU(),
         nn.Linear(FIRST_HIDDEN_LAYER_SIZE, SECOND_HIDDEN_LAYER_SIZE),
         nn.ReLU(),
-        nn.Linear(SECOND_HIDDEN_LAYER_SIZE, OUTPUT_SIZE),
-        nn.LogSoftmax(dim=1)
+        nn.Linear(SECOND_HIDDEN_LAYER_SIZE, NUM_CLASSES),
     )
 
 
@@ -50,15 +54,13 @@ class FeedForward(torch.nn.Module):
         super().__init__()
         self.linear1 = torch.nn.Linear(INPUT_SIZE, FIRST_HIDDEN_LAYER_SIZE)
         self.linear2 = torch.nn.Linear(FIRST_HIDDEN_LAYER_SIZE, SECOND_HIDDEN_LAYER_SIZE)
-        self.linear3 = torch.nn.Linear(SECOND_HIDDEN_LAYER_SIZE, OUTPUT_SIZE)
-        self.softmax = torch.nn.LogSoftmax(dim=1)
+        self.linear3 = torch.nn.Linear(SECOND_HIDDEN_LAYER_SIZE, NUM_CLASSES)
 
     def forward(self, x):
-        x0 = x.reshape(x.size(0), -1)  # flat
-        x1 = F.relu(self.linear1(x0))  # .clamp(min=0)
-        x2 = F.relu(self.linear2(x1))  # .clamp(min=0)
-        x3 = self.linear3(x2)
-        return self.softmax(x3)
+        out = x.reshape(x.size(0), -1)  # flat
+        out = F.relu(self.linear1(out))  # .clamp(min=0)
+        out = F.relu(self.linear2(out))  # .clamp(min=0)
+        return self.linear3(out)
 
 
 class ConvNet(torch.nn.Module):
@@ -88,13 +90,19 @@ class ConvNet(torch.nn.Module):
         out = self.fc2(out)
         return self.softmax(out)
 
+    def freeze(self):
+        for param in self.model.parameters():
+            param.requires_grad = False
 
-def train_model(train_loader, model, loss_f, epochs):
+
+def train_model(train_loader, model, criterion, epochs):
     optimizer = optim.SGD(model.parameters(), lr=0.003, momentum=0.9)
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
     time0 = time()
     # epochs = 15
-    for e in range(epochs):
+    for epoch in range(epochs):
         running_loss = 0
+        exp_lr_scheduler.step(epoch)
         for images, labels in train_loader:
             # Flatten MNIST images into a 784 long vector
             # images = images.view(images.shape[0], -1)
@@ -106,7 +114,7 @@ def train_model(train_loader, model, loss_f, epochs):
             optimizer.zero_grad()
 
             output = model(images)
-            loss = loss_f(output, labels)
+            loss = criterion(output, labels)
 
             # This is where the model learns by backpropagating
             loss.backward()
@@ -118,7 +126,7 @@ def train_model(train_loader, model, loss_f, epochs):
         else:
             print(
                 "Epoch{:> 3} - Train loss: {:.5f} - Elapsed: {:.2f} min".format(
-                    e, running_loss / len(train_loader), (time() - time0) / 60
+                    epoch, running_loss / len(train_loader), (time() - time0) / 60
                 )
             )
 
@@ -134,12 +142,6 @@ def calculate_accuracy(val_loader, model):
             output = model(images)
 
         for i in range(len(labels)):
-            # img = images[i].view(1, 784)
-            # img = images[i]
-            # if cuda.is_available():
-            #     img = img.cuda()
-            # with torch.no_grad():
-            #     logps = model(img)
             logps = output[i]
 
             ps = torch.exp(logps)
@@ -154,20 +156,71 @@ def calculate_accuracy(val_loader, model):
     print("Model Accuracy = {:.2f}%".format(100 * correct_count / all_count))
 
 
+def freeze_model(model):
+    for param in model.parameters():
+        param.requires_grad = False
+
+
+def parse_arguments():
+    network_arch = 'Resnet'
+
+    messages = {
+        'ff': "Use Feed Forward network",
+        'cnn': "Use Convolutional network",
+        'resnet': "Use pretrained Resnet network",
+    }
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ff", help=messages['ff'], action="store_true")
+    parser.add_argument("--cnn", help=messages['cnn'], action="store_true")
+    parser.add_argument("--resnet", help=messages['resnet'], action="store_true")
+    args = parser.parse_args()
+    if args.ff:
+        network_arch = 'FF'
+        print(messages['ff'])
+    if args.cnn:
+        network_arch = 'CNN'
+        print(messages['cnn'])
+    if args.resnet:
+        network_arch = 'Resnet'
+        print(messages['resnet'])
+
+    return network_arch
+
+
 if __name__ == '__main__':
 
-    model_type = 'FF'  # 'CNN' 'FF'
+    arch = parse_arguments()
 
     train_loader, val_loader = get_data_loaders()
 
-    model = ConvNet() if model_type == "CNN" else FeedForward()
+    model = None
+    if arch == "FF":
+        model = FeedForward()
+    if arch == "CNN":
+        model = ConvNet()
+    if arch == "Resnet":
+        # get pretrained model
+        model = models.resnet18(pretrained=True)
+
+        # setup first layer with only 1 chanel
+        orig_state = model.state_dict()
+        orig_weights = copy.deepcopy(orig_state['conv1.weight'].data)
+        model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        model.conv1.weight.data = orig_weights.resize_as_(model.conv1.weight.data)
+
+        # freeze weights
+        freeze_model(model)
+
+        # setup last layer with current number of classes
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, NUM_CLASSES)
+
     if cuda.is_available():
         model = model.cuda()
 
-    loss_f = nn.NLLLoss()
+    criterion = nn.CrossEntropyLoss()
 
-    # epochs = CNN_EPOCHS if model_type == "CNN" else FEED_FORWARD_EPOCHS
-    train_model(train_loader, model, loss_f, epochs=DEFAULT_EPOCHS)
+    train_model(train_loader, model, criterion, epochs=DEFAULT_EPOCHS)
     torch.save(model, './data/my_mnist_model.pt')
 
     calculate_accuracy(val_loader, model)
