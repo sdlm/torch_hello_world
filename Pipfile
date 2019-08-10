@@ -13,6 +13,7 @@ numpy = "*"
 matplotlib = "*"
 torch = "*"
 torchvision = "*"
+pillow = "*"
 
 [requires]
 python_version = "3.7"
