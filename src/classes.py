@@ -26,6 +26,5 @@ class ConvNet(torch.nn.Module):
         out = self.drop_out(out)
         out = self.fc1(out).clamp(min=0)
         out = self.fc2(out)
-        # x_coord, y_coord = torch.split(out, 1, dim=1)
-        # return x_coord, y_coord
-        return out
+        x_coord, y_coord = torch.split(out, 1, dim=1)
+        return x_coord, y_coord
