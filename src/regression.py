@@ -10,8 +10,8 @@ from torch.optim import lr_scheduler
 from torchvision import datasets, models, transforms
 
 
-PATH_TO_STORE_TRAINSET = './data/train'
-PATH_TO_STORE_TESTSET = './data/test'
+PATH_TO_STORE_TRAINSET = "./data/train"
+PATH_TO_STORE_TESTSET = "./data/test"
 
 IMG_WIDTH = IMG_HEIGHT = 28
 
@@ -67,16 +67,12 @@ class ConvNet(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.layer1 = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=3),  # 26 * 26
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2)  # 13 * 13
+            nn.Conv2d(1, 32, kernel_size=3), nn.ReLU(), nn.MaxPool2d(kernel_size=2)  # 26 * 26  # 13 * 13
         )
         self.layer2 = nn.Sequential(
-            nn.Conv2d(32, 64, kernel_size=3),  # 11 * 11
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2)  # 5 * 5
+            nn.Conv2d(32, 64, kernel_size=3), nn.ReLU(), nn.MaxPool2d(kernel_size=2)  # 11 * 11  # 5 * 5
         )
-        self.drop_out = nn.Dropout(p=.5)
+        self.drop_out = nn.Dropout(p=0.5)
         self.fc1 = nn.Linear(5 * 5 * 64, 1000)  # Fully Connected
         self.fc2 = nn.Linear(1000, 10)
         self.softmax = torch.nn.LogSoftmax(dim=1)
@@ -162,32 +158,32 @@ def freeze_model(model):
 
 
 def parse_arguments():
-    network_arch = 'Resnet'
+    network_arch = "Resnet"
 
     messages = {
-        'ff': "Use Feed Forward network",
-        'cnn': "Use Convolutional network",
-        'resnet': "Use pretrained Resnet network",
+        "ff": "Use Feed Forward network",
+        "cnn": "Use Convolutional network",
+        "resnet": "Use pretrained Resnet network",
     }
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ff", help=messages['ff'], action="store_true")
-    parser.add_argument("--cnn", help=messages['cnn'], action="store_true")
-    parser.add_argument("--resnet", help=messages['resnet'], action="store_true")
+    parser.add_argument("--ff", help=messages["ff"], action="store_true")
+    parser.add_argument("--cnn", help=messages["cnn"], action="store_true")
+    parser.add_argument("--resnet", help=messages["resnet"], action="store_true")
     args = parser.parse_args()
     if args.ff:
-        network_arch = 'FF'
-        print(messages['ff'])
+        network_arch = "FF"
+        print(messages["ff"])
     if args.cnn:
-        network_arch = 'CNN'
-        print(messages['cnn'])
+        network_arch = "CNN"
+        print(messages["cnn"])
     if args.resnet:
-        network_arch = 'Resnet'
-        print(messages['resnet'])
+        network_arch = "Resnet"
+        print(messages["resnet"])
 
     return network_arch
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     arch = parse_arguments()
 
@@ -204,7 +200,7 @@ if __name__ == '__main__':
 
         # setup first layer with only 1 chanel
         orig_state = model.state_dict()
-        orig_weights = copy.deepcopy(orig_state['conv1.weight'].data)
+        orig_weights = copy.deepcopy(orig_state["conv1.weight"].data)
         model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         model.conv1.weight.data = orig_weights.resize_as_(model.conv1.weight.data)
 
@@ -223,6 +219,6 @@ if __name__ == '__main__':
     criterion = nn.MSELoss()
 
     train_model(train_loader, model, criterion, epochs=DEFAULT_EPOCHS)
-    torch.save(model, './data/my_mnist_model.pt')
+    torch.save(model, "./data/my_mnist_model.pt")
 
     calculate_accuracy(val_loader, model)

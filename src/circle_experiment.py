@@ -23,11 +23,11 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def generate_image(x: int, y: int) -> Image:
-    image = Image.new('L', (IMG_SIZE, IMG_SIZE))
+    image = Image.new("L", (IMG_SIZE, IMG_SIZE))
     draw = ImageDraw.Draw(image)
-    draw.rectangle([(0, 0), image.size], fill='black')
+    draw.rectangle([(0, 0), image.size], fill="black")
     coords = (x, y, x + DIAMETER, y + DIAMETER)
-    draw.ellipse(coords, fill='white')
+    draw.ellipse(coords, fill="white")
     return image
 
 
@@ -35,20 +35,15 @@ def generate_dataset(count: int):
     max_coord = IMG_SIZE - 2 * MARGIN
     x_arr = MARGIN + np.random.randint(max_coord, size=count)
     y_arr = MARGIN + np.random.randint(max_coord, size=count)
-    images = [
-        generate_image(x_arr[i], y_arr[i])
-        for i in range(count)
-    ]
-    arr = np.array([
-        np.array(im)
-        for im in images
-    ])
+    images = [generate_image(x_arr[i], y_arr[i]) for i in range(count)]
+    arr = np.array([np.array(im) for im in images])
     x_center = x_arr + DIAMETER / 2
     return arr, x_center
 
 
 class Dataset(data.Dataset):
     """Characterizes a dataset for PyTorch"""
+
     def __init__(self, count: int):
         """Initialization"""
         volatility = IMG_SIZE - 2 * MARGIN
@@ -82,11 +77,11 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
         # print('-' * 10)
 
         # Each epoch has a training and validation phase
-        for phase in ['train']:  # , 'val'
-            if phase == 'train':
+        for phase in ["train"]:  # , 'val'
+            if phase == "train":
                 model.train()  # Set model to training mode
             else:
-                model.eval()   # Set model to evaluate mode
+                model.eval()  # Set model to evaluate mode
 
             running_loss = 0.0
             # running_corrects = 0
@@ -104,7 +99,7 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
 
                 # forward
                 # track history if only in train
-                with torch.set_grad_enabled(phase == 'train'):
+                with torch.set_grad_enabled(phase == "train"):
                     # Get model outputs and calculate loss
                     x_coord, y_coord = model(inputs)
                     max_x_coord = max(max_x_coord, x_coord.max().item())
@@ -115,7 +110,7 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
                     # _, preds = torch.max(outputs, 1)
 
                     # backward + optimize only if in training phase
-                    if phase == 'train':
+                    if phase == "train":
                         joint_loss.backward()
                         optimizer.step()
                         scheduler.step(epoch)
@@ -129,7 +124,7 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
 
             # print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
             print(
-                'Epoch {: >3}, {: >7} Loss: {:.4f}, rough_dif = {:.1f}'.format(
+                "Epoch {: >3}, {: >7} Loss: {:.4f}, rough_dif = {:.1f}".format(
                     epoch, phase, epoch_loss, abs(28 - max_x_coord)
                 )
             )
@@ -144,7 +139,7 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
         # print()
 
     time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    print("Training complete in {:.0f}m {:.0f}s".format(time_elapsed // 60, time_elapsed % 60))
     # print('Best val Acc: {:4f}'.format(best_acc))
 
     # load best model weights
@@ -152,22 +147,15 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
     return model, val_acc_history
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     if cuda.is_available():
-        print('USE GPU')
+        print("USE GPU")
 
-    dataset_params = {
-        'train': TRAIN_COUNT,
-        'val': TEST_COUNT,
-    }
-    image_datasets = {
-        x: Dataset(dataset_params[x])
-        for x in ['train', 'val']
-    }
+    dataset_params = {"train": TRAIN_COUNT, "val": TEST_COUNT}
+    image_datasets = {x: Dataset(dataset_params[x]) for x in ["train", "val"]}
     dataloaders = {
-        x: data.DataLoader(image_datasets[x], batch_size=64, shuffle=True, num_workers=4)
-        for x in ['train', 'val']
+        x: data.DataLoader(image_datasets[x], batch_size=64, shuffle=True, num_workers=4) for x in ["train", "val"]
     }
 
     model = classes.ConvNet(fc=2).to(device)
