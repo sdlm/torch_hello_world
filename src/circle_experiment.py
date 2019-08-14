@@ -1,18 +1,12 @@
 import copy
 import time
 
-import numpy as np
 import torch
-from PIL import Image, ImageDraw
 from torch import nn, optim, cuda
 from torch.utils import data
-from torchvision.transforms import transforms
 
-from src import classes
+from src import classes, datasets
 
-DIAMETER = 2
-IMG_SIZE = 32
-MARGIN = 4
 TRAIN_COUNT = 5000
 TEST_COUNT = 500
 EPOCHS_COUNT = 10
@@ -20,48 +14,6 @@ EPOCHS_COUNT = 10
 
 # Detect if we have a GPU available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-def generate_image(x: int, y: int) -> Image:
-    image = Image.new("L", (IMG_SIZE, IMG_SIZE))
-    draw = ImageDraw.Draw(image)
-    draw.rectangle([(0, 0), image.size], fill="black")
-    coords = (x, y, x + DIAMETER, y + DIAMETER)
-    draw.ellipse(coords, fill="white")
-    return image
-
-
-def generate_dataset(count: int):
-    max_coord = IMG_SIZE - 2 * MARGIN
-    x_arr = MARGIN + np.random.randint(max_coord, size=count)
-    y_arr = MARGIN + np.random.randint(max_coord, size=count)
-    images = [generate_image(x_arr[i], y_arr[i]) for i in range(count)]
-    arr = np.array([np.array(im) for im in images])
-    x_center = x_arr + DIAMETER / 2
-    return arr, x_center
-
-
-class Dataset(data.Dataset):
-    """Characterizes a dataset for PyTorch"""
-
-    def __init__(self, count: int):
-        """Initialization"""
-        volatility = IMG_SIZE - 2 * MARGIN
-        x_arr = np.random.randint(volatility, size=count) + MARGIN
-        y_arr = np.random.randint(volatility, size=count) + MARGIN
-        to_tensor = transforms.ToTensor()
-        self.values = [to_tensor(generate_image(x_arr[i], y_arr[i])) for i in range(count)]
-        x_center = torch.from_numpy(x_arr + DIAMETER / 2).float()
-        y_center = torch.from_numpy(y_arr + DIAMETER / 2).float()
-        self.labels = [(x_center[i], y_center[i]) for i in range(count)]
-
-    def __len__(self):
-        """Denotes the total number of samples"""
-        return len(self.labels)
-
-    def __getitem__(self, index):
-        """Generates one sample of data"""
-        return self.values[index], self.labels[index]
 
 
 def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=25):
@@ -153,7 +105,7 @@ if __name__ == "__main__":
         print("USE GPU")
 
     dataset_params = {"train": TRAIN_COUNT, "val": TEST_COUNT}
-    image_datasets = {x: Dataset(dataset_params[x]) for x in ["train", "val"]}
+    image_datasets = {x: datasets.CircleDataset(dataset_params[x]) for x in ["train", "val"]}
     dataloaders = {
         x: data.DataLoader(image_datasets[x], batch_size=64, shuffle=True, num_workers=4) for x in ["train", "val"]
     }
