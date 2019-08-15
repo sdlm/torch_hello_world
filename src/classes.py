@@ -10,9 +10,19 @@ class ConvNet(torch.nn.Module):
             nn.Conv2d(first_conv, first_conv * 2, kernel_size=3), nn.ReLU(), nn.MaxPool2d(kernel_size=2)
         )
         self.drop_out = nn.Dropout(p=0.5)
-        self.fc1 = nn.Linear(6 * 6 * 64, first_fc)  # Fully Connected
+        self.fc1 = nn.Linear(6 * 6 * first_conv * 2, first_fc)  # Fully Connected
         self.fc2 = nn.Linear(first_fc, fc)
 
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = out.reshape(out.size(0), -1)  # flat
+        out = self.drop_out(out)
+        out = self.fc1(out).clamp(min=0)
+        return self.fc2(out)
+
+
+class ConvNetPredictCoord(ConvNet):
     def forward(self, x):
         out = self.layer1(x)
         out = self.layer2(out)
@@ -22,3 +32,14 @@ class ConvNet(torch.nn.Module):
         out = self.fc2(out)
         x_coord, y_coord = torch.split(out, 1, dim=1)
         return x_coord, y_coord
+
+
+class ConvNetPredictFourCoord(ConvNet):
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = out.reshape(out.size(0), -1)  # flat
+        out = self.drop_out(out)
+        out = self.fc1(out).clamp(min=0)
+        out = self.fc2(out)
+        return torch.split(out, 1, dim=1)

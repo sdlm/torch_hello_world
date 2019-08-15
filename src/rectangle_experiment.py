@@ -44,7 +44,7 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
             for inputs, labels in dataloaders[phase]:
                 # move to device
                 inputs = inputs.to(device)
-                labels = [l.to(device) for l in labels]
+                labels = [l.float().to(device) for l in labels]
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -53,11 +53,11 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
                 # track history if only in train
                 with torch.set_grad_enabled(phase == "train"):
                     # Get model outputs and calculate loss
-                    x_coord, y_coord = model(inputs)
-                    max_x_coord = max(max_x_coord, x_coord.max().item())
-                    x_loss = criterion(x_coord, labels[0].unsqueeze(1))
-                    y_loss = criterion(y_coord, labels[1].unsqueeze(1))
-                    joint_loss = 0.5 * (x_loss + y_loss)
+                    coords = model(inputs)
+                    coords = torch.split(coords, 1, dim=1)
+                    joint_loss = 0
+                    for k, coord in enumerate(coords):
+                        joint_loss += .5 * criterion(coord, labels[k].unsqueeze(1))
 
                     # _, preds = torch.max(outputs, 1)
 
@@ -105,12 +105,12 @@ if __name__ == "__main__":
         print("USE GPU")
 
     dataset_params = {"train": TRAIN_COUNT, "val": TEST_COUNT}
-    image_datasets = {x: datasets.CircleDataset(dataset_params[x]) for x in ["train", "val"]}
+    image_datasets = {x: datasets.RectangleDataset(dataset_params[x]) for x in ["train", "val"]}
     dataloaders = {
         x: data.DataLoader(image_datasets[x], batch_size=64, shuffle=True, num_workers=4) for x in ["train", "val"]
     }
 
-    model = classes.ConvNetPredictCoord(fc=2).to(device)
+    model = classes.ConvNet(first_conv=128, first_fc=4096, fc=8).to(device)
     criterion = nn.L1Loss()
     optimizer = optim.SGD(model.parameters(), lr=0.02, momentum=0.9)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
