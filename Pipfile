@@ -15,6 +15,7 @@ torch = "*"
 torchvision = "*"
 pillow = "*"
 black = "==19.3b0"
+tb-nightly = "==1.15.0a20190816"
 
 [requires]
 python_version = "3.7"

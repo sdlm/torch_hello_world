@@ -4,6 +4,7 @@ import time
 import torch
 from torch import nn, optim, cuda
 from torch.utils import data
+from torch.utils.tensorboard import SummaryWriter
 
 from src import classes, datasets
 
@@ -18,6 +19,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
+    writer = SummaryWriter()
 
     val_acc_history = []
 
@@ -29,7 +31,7 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
         # print('-' * 10)
 
         # Each epoch has a training and validation phase
-        for phase in ["train"]:  # , 'val'
+        for phase in ["train", 'val']:  # , 'val'
             if phase == "train":
                 model.train()  # Set model to training mode
             else:
@@ -76,10 +78,11 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
 
             # print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
             print(
-                "Epoch {: >3}, {: >7} Loss: {:.4f}, rough_dif = {:.1f}".format(
+                "Epoch {: >3}, {: >7} Loss: {: >7.4f}, rough_dif = {:.1f}".format(
                     epoch, phase, epoch_loss, abs(28 - max_x_coord)
                 )
             )
+            writer.add_scalar(f'Loss/{phase}', epoch_loss, epoch)
 
             # deep copy the model
             # if phase == 'val' and epoch_acc > best_acc:
@@ -93,6 +96,7 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
     time_elapsed = time.time() - since
     print("Training complete in {:.0f}m {:.0f}s".format(time_elapsed // 60, time_elapsed % 60))
     # print('Best val Acc: {:4f}'.format(best_acc))
+    writer.close()
 
     # load best model weights
     # model.load_state_dict(best_model_wts)
@@ -115,4 +119,4 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), lr=0.02, momentum=0.9)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
-    train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=100)
+    train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=60)
