@@ -20,6 +20,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
     writer = SummaryWriter()
+    mse_criterion = nn.MSELoss()
 
     val_acc_history = []
 
@@ -38,6 +39,7 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
                 model.eval()  # Set model to evaluate mode
 
             running_loss = 0.0
+            running_mse_loss = 0.0
             # running_corrects = 0
 
             max_x_coord = 0
@@ -56,10 +58,13 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
                 with torch.set_grad_enabled(phase == "train"):
                     # Get model outputs and calculate loss
                     coords = model(inputs)
-                    coords = torch.split(coords, 1, dim=1)
+                    predict_coords = torch.split(coords, 1, dim=1)
                     joint_loss = 0
-                    for k, coord in enumerate(coords):
-                        joint_loss += .5 * criterion(coord, labels[k].unsqueeze(1))
+                    mse_loss = 0
+                    for k, predict_coord in enumerate(predict_coords):
+                        true_coord = labels[k].unsqueeze(1)
+                        joint_loss += 1/8.0 * criterion(predict_coord, true_coord)
+                        mse_loss += 1/8.0 * mse_criterion(predict_coord, true_coord)
 
                     # _, preds = torch.max(outputs, 1)
 
@@ -71,18 +76,21 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
 
                 # statistics
                 running_loss += joint_loss.item() * inputs.size(0)
+                running_mse_loss += mse_loss.item() * inputs.size(0)
                 # running_corrects += torch.sum(preds == labels.data)
 
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
+            epoch_mse_loss = running_mse_loss / len(dataloaders[phase].dataset)
             # epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
             # print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
             print(
-                "Epoch {: >3}, {: >7} Loss: {: >7.4f}, rough_dif = {:.1f}".format(
-                    epoch, phase, epoch_loss, abs(28 - max_x_coord)
+                "Epoch {: >3}, {: >7} Loss: {: >7.4f}, MSE loss = {:.1f}".format(
+                    epoch, phase, epoch_loss, epoch_mse_loss
                 )
             )
-            writer.add_scalar(f'Loss/{phase}', epoch_loss, epoch)
+            writer.add_scalar(f'L1Loss/{phase}', epoch_loss, epoch)
+            writer.add_scalar(f'MSELoss/{phase}', epoch_mse_loss, epoch)
 
             # deep copy the model
             # if phase == 'val' and epoch_acc > best_acc:
