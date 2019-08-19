@@ -10,7 +10,9 @@ class ConvNet(torch.nn.Module):
             nn.Conv2d(first_conv, first_conv * 2, kernel_size=3), nn.ReLU(), nn.MaxPool2d(kernel_size=2)
         )
         self.drop_out = nn.Dropout(p=0.5)
-        self.fc1 = nn.Linear(6 * 6 * first_conv * 2, first_fc)  # Fully Connected
+        # 32 -> 6 * 6
+        # 128 -> 30 * 30
+        self.fc1 = nn.Linear(30 * 30 * first_conv * 2, first_fc)  # Fully Connected
         self.fc2 = nn.Linear(first_fc, fc)
 
     def forward(self, x):

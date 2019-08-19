@@ -42,7 +42,7 @@ class CircleDataset(data.Dataset):
 class RectangleDataset(data.Dataset):
     """Rectangle in black background"""
 
-    IMG_SIZE = 32
+    IMG_SIZE = 128
     WIDTH = 13
     HEIGHT = 8
     MARGIN = math.sqrt((WIDTH / 2) ** 2 + (HEIGHT / 2) ** 2) + 5
